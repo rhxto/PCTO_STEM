@@ -8,24 +8,27 @@
 #include <SPI.h> 
 #include <WiFiNINA.h>
 
-float x, y, z;
-MKRIoTCarrier carrier;
+float x, y, z; // valori dell'accelerazione sui vari assi
+MKRIoTCarrier carrier; // shield
+
+// funzione chiamata quando si visita PERCORSO_DATI
+// legge l'accelerazione 100 volte ogni 100 ms ed invia una pagina web col grafico a/t
 void leggiAccelerometro(WiFiClient paginaWeb) {
   int tempi[100]; //Array contenente i tempi
   float acc[100]; //Array contenente le accelerazioni
   int tempo = 100; //valore da attribuire al delay
   
-for(int i=0; i<100;i++){ //Legge l'accelerazione e inserisce i valori ottenuti in acc[i] in linea con il tempo
+  for (int i=0; i<100;i++){ //Legge l'accelerazione e inserisce i valori ottenuti in acc[i] in linea con il tempo 100 volte
     if (carrier.IMUmodule.accelerationAvailable()){ 
       carrier.IMUmodule.readAcceleration(x,y,z);
     }
     tempi[i]= i*tempo; //tempo che corrisponde all'accelerazione
     acc[i] = sqrt(x*x + y*y + z*z); //formula matematica
-    delay(tempo); //ogni quanto i valori vengono inseriti negli array (in millisecondi)
+    delay(tempo); // quanto aspettare tra una misurazione e l'altra
   }
 
 
-  
+  // debugging in seriale per controllare i valori misurati e quelli inviati
   Serial.print("T = [");
   for(int i=0;i<100;i++){
     Serial.print(tempi[i]);
@@ -38,13 +41,23 @@ for(int i=0; i<100;i++){ //Legge l'accelerazione e inserisce i valori ottenuti i
     Serial.print(", ");
   } 
   Serial.println("]");
+  // fine debugging
  
-  
+  // inviamo al client una pagina web, stampando riga per riga i tag html statici e il codice javascript (variabile)
   paginaWeb.println("<html>");
+  // la libreria Chart.js
   paginaWeb.println("<script src=\"https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js\"></script>");
+  // il canvas dove andremo a disegnare il grafico
   paginaWeb.println("<canvas id=\"Grafico\" style=\"width:100%;max-width:600px\"></canvas>");
+  // inizio codice javascript da eseguire per generare il grafico, si deve inserire all'interno del tag script
   paginaWeb.println("<script>");
   paginaWeb.print("var tempi = [");
+
+  // all'interno della sezione script dichiariamo due array e li riempiamo:
+  /*
+   * var tempi = [a, b, c, d];
+   * var acc = [x, y, z, w];
+   */
   for (int i = 0; i < 100; i++) {
     paginaWeb.print(tempi[i]);
     paginaWeb.print(", ");
@@ -56,7 +69,13 @@ for(int i=0; i<100;i++){ //Legge l'accelerazione e inserisce i valori ottenuti i
     paginaWeb.print(", ");
   }
   paginaWeb.println("];");
+
+  // generiamo un grafico con l'array tempi come asse x e acc come asse y, attraverso la libreria Chart.js
+  // il grafico viene inserito nel canvas con id "Grafico", è di tipo "line" e l'unica serie di dati (dataset) presente è quella delle accelerazioni
+  // mettendo più datasets, magari di più misurazioni si generano più linee
   paginaWeb.println("new Chart(\"Grafico\",{type: \"line\", data: {labels: tempi,datasets: [{fill: false, lineTension: 0, data: acc}]}});");
+
+  // chiusura dei tag per la pagina
   paginaWeb.println("</script>");
   paginaWeb.println("</html>");
 }
@@ -68,15 +87,18 @@ int status = WL_IDLE_STATUS;
 
 WiFiServer server(80);
 void setup() {
+  // inizializzazione seriale
   Serial.begin(9600);
   while (!Serial) {}
 
+  // rilevazione del modulo wifi
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("Modulo wifi non trovato");
-    // don't continue
+    // il programma si ferma nel caso non ci sia il modulo wifi
     while (true);
   }
 
+  // controllo che la versione del firmware non sia minore dell'ultima, in caso contrario va aggiornato
   String fv = WiFi.firmwareVersion();
   if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
     Serial.println("Aggiornare il firmware");
@@ -84,46 +106,59 @@ void setup() {
     Serial.print("Versione firmware: ");
     Serial.println(fv);
   }
-  
-  while (status != WL_CONNECTED) {
-    Serial.print("Attempting to connect to network: ");
-    Serial.println(ssid);
-    // Connect to WPA/WPA2 network:
-    status = WiFi.begin(ssid, pass);
 
-    // wait 10 seconds for connection:
+  // finché non siamo connessi al wifi riproviamo dando 5 secondi di tempo ogni volta
+  // quando arduino sarà connesso la condizione del while sarà falsa e procederà
+  while (status != WL_CONNECTED) {
+    Serial.print("Connessione a: ");
+    Serial.println(ssid);
+    
+    status = WiFi.begin(ssid, pass);
     delay(5000);
   }
   
   Serial.println("Connesso 8)");
+
+  // stampiamo l'indirizzo ip da usare quando si vuole visitare la pagina web
+  // ad esempio se l'ip è 172.20.10.4 -> http://172.20.10.4/
   IPAddress ip = WiFi.localIP();
   Serial.print("IP Address: ");
   Serial.println(ip);
-  // inizializza webserver in porta 80
+  
+  // inizializza webserver in porta 80 (standard HTTP)
   server.begin();
+
+  // non abbiamo il case dello shield
   CARRIER_CASE = false;
+  // avvio shield
   carrier.begin();
 }
 
-
+// istruzioni che arduino riceve dal broswer a seconda della pagina richiesta
+// http://ipArduino/dati
 String PERCORSO_DATI = "GET /dati HTTP/1.1";
+// http://ipArduino/
 String PERCORSO_ROOT = "GET / HTTP/1.1";
+// istruzione ricevuta
 String lineaCorrente = "";                
 void loop() {
   WiFiClient client = server.available();         // controlla se c'è un dispositivo a cui consegnare una pagina web
   if (client) {                                   // Se il client esiste, le sue informazioni vengono inserite all'interno di una stringa per conservarle
     while (client.connected()) {
-      if (!client.available()) {
+      if (!client.available()) { // se il client non è disponibile chiudiamo la connessione
         break;
       }
 
       lineaCorrente = ""; // reset lineaCorrente
+      // possiamo leggere le istruzioni ricevute solo un carattere per volta
+      // leggi un carattere e aggiungilo a lineaCorrente finché non incontri un a capo
       char c = client.read();
       while (c != '\n' && c != '\r') {
         lineaCorrente += c;
         c = client.read();
       }
 
+      // se non abbiamo ricevuto alcuna istruzione chiudiamo la connessione
       if (lineaCorrente.length() == 0) {
         break;
       } else {
@@ -139,9 +174,7 @@ void loop() {
         client.println("HTTP/1.1 200 OK");    // Protocollo HTTP da seguire
         client.println("Content-type: text/html"); // stiamo inviando dell'html
         client.println(); // nuova riga per iniziare a mandare l'html (sono finiti gli header)
-        leggiAccelerometro(client);
-        client.println();
-        // TODO: generazione grafico
+        leggiAccelerometro(client); // la funzione leggiAccelerometro genera il grafico e lo manda
         break;
       } else if (lineaCorrente.equals(PERCORSO_ROOT)) {
         Serial.println("Pagina di base");                       
@@ -149,7 +182,6 @@ void loop() {
         client.println("Content-type:text/html"); // stiamo inviando dell'html
         client.println(); // nuova riga per iniziare a mandare l'html (sono finiti gli header)
         client.println("<html><h1>Pagina web funzionante</h1></html>");
-        // chiusura della connessione
         break;
       } else {
         break;
