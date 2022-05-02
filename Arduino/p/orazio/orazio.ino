@@ -11,30 +11,58 @@
 float x, y, z;
 MKRIoTCarrier carrier;
 void leggiAccelerometro(WiFiClient paginaWeb) {
-  if (carrier.IMUmodule.accelerationAvailable()){ 
-    carrier.IMUmodule.readAcceleration(x,y,z);
-    Serial.print(x);
-    Serial.print(" ");
-    Serial.print(y);
-    Serial.print(" ");
-    Serial.println(z);
+  int tempi[100]; //Array contenente i tempi
+  float acc[100]; //Array contenente le accelerazioni
+  int tempo = 100; //valore da attribuire al delay
+  
+for(int i=0; i<100;i++){ //Legge l'accelerazione e inserisce i valori ottenuti in acc[i] in linea con il tempo
+    if (carrier.IMUmodule.accelerationAvailable()){ 
+      carrier.IMUmodule.readAcceleration(x,y,z);
+    }
+    tempi[i]= i*tempo; //tempo che corrisponde all'accelerazione
+    acc[i] = sqrt(x*x + y*y + z*z); //formula matematica
+    delay(tempo); //ogni quanto i valori vengono inseriti negli array (in millisecondi)
   }
+
+
+  
+  Serial.print("T = [");
+  for(int i=0;i<100;i++){
+    Serial.print(tempi[i]);
+    Serial.print(", ");
+  } 
+  Serial.println("]");
+  Serial.print("A = [");
+  for(int i=0;i<100;i++){
+    Serial.print(acc[i]);
+    Serial.print(", ");
+  } 
+  Serial.println("]");
+ 
   
   paginaWeb.println("<html>");
-  paginaWeb.println("<p>");
-  paginaWeb.println(x);
-  paginaWeb.println("</p>");
-  paginaWeb.println("<p>");
-  paginaWeb.println(y);
-  paginaWeb.println("</p>");
-  paginaWeb.println("<p>");
-  paginaWeb.println(z);
-  paginaWeb.println("</p>");
+  paginaWeb.println("<script src=\"https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js\"></script>");
+  paginaWeb.println("<canvas id=\"Grafico\" style=\"width:100%;max-width:600px\"></canvas>");
+  paginaWeb.println("<script>");
+  paginaWeb.print("var tempi = [");
+  for (int i = 0; i < 100; i++) {
+    paginaWeb.print(tempi[i]);
+    paginaWeb.print(", ");
+  }
+  paginaWeb.println("];");
+  paginaWeb.print("var acc = [");
+  for (int i=0; i<100; i++){
+    paginaWeb.print(acc[i]);
+    paginaWeb.print(", ");
+  }
+  paginaWeb.println("];");
+  paginaWeb.println("new Chart(\"Grafico\",{type: \"line\", data: {labels: tempi,datasets: [{fill: false, lineTension: 0, data: acc}]}});");
+  paginaWeb.println("</script>");
   paginaWeb.println("</html>");
 }
 
-char ssid[]="HotWaifu";
-char pass[]="12345678";
+char ssid[]="Blueface_dawe";
+char pass[]="rustigay";
 int status = WL_IDLE_STATUS;
 
 
@@ -57,15 +85,20 @@ void setup() {
     Serial.println(fv);
   }
   
-  Serial.println("Creazione AP");
-  status = WiFi.beginAP(ssid, pass);
-  while (status != WL_AP_LISTENING) {
-    Serial.print("Waiting for access point: ");
-    Serial.println(status);
-    delay(2000);
+  while (status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to network: ");
+    Serial.println(ssid);
+    // Connect to WPA/WPA2 network:
+    status = WiFi.begin(ssid, pass);
+
+    // wait 10 seconds for connection:
+    delay(5000);
   }
   
-  Serial.println("AP creato 8)");
+  Serial.println("Connesso 8)");
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
   // inizializza webserver in porta 80
   server.begin();
   CARRIER_CASE = false;
@@ -83,15 +116,19 @@ void loop() {
       if (!client.available()) {
         break;
       }
-      
+
+      lineaCorrente = ""; // reset lineaCorrente
       char c = client.read();
       while (c != '\n' && c != '\r') {
         lineaCorrente += c;
         c = client.read();
       }
 
-      if (lineaCorrente.length == 0) {
+      if (lineaCorrente.length() == 0) {
         break;
+      } else {
+        Serial.print("Pagina richiesta: ");
+        Serial.println(lineaCorrente);
       }
 
       // una volta ricevuta la prima riga dal client, cancelliamo il resto dei dati ricevuti (dato che non li usiamo)
@@ -113,6 +150,8 @@ void loop() {
         client.println(); // nuova riga per iniziare a mandare l'html (sono finiti gli header)
         client.println("<html><h1>Pagina web funzionante</h1></html>");
         // chiusura della connessione
+        break;
+      } else {
         break;
       }
     }
