@@ -68,7 +68,7 @@ Pila--------X------- Pila
      \------X-----/
 
 => Multimetro x volt -> serie
-=> Multietro x Ampere -> parallelo
+=> Multimetro x Ampere -> parallelo
 
 ## Resistenza elettrica
 R = deltaV/i => 1 Ohm(Ω) -> 1V/1A
@@ -76,3 +76,21 @@ R = deltaV/i => 1 Ohm(Ω) -> 1V/1A
 => intensità di corrente = deltaV/R (Ω)
 => Prima legge di Ohm -> la resistenza di corrente è direttamente proporzionale alla differenza di potenziale applicata
 ai capi del conduttore
+
+BLUTUZZ e trasmittore waifai
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Progettazione:
+- Scopo
+- Materiale
+- Misurazioni
+- Elab dati
+
+Realizzazione:
+- Collegamento
+- Software
+- Testing
+
+Documentazione:
+- Istruzioni per i tecnici (Setup fisico)
+- Istruzioni per docenti (contesto didattico)
+- Istruzioni per gli alunni (Cosa mettere in sketch come fare andare cosa misurare)
