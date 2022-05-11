@@ -11,19 +11,28 @@
 float x, y, z; // valori dell'accelerazione sui vari assi
 MKRIoTCarrier carrier; // shield
 
+void mandaAccelerazioni(client) {
+
+}
+
 // funzione chiamata quando si visita PERCORSO_DATI
 // legge l'accelerazione 100 volte ogni 100 ms ed invia una pagina web col grafico a/t
 void leggiAccelerometro(WiFiClient paginaWeb) {
   int tempi[100]; //Array contenente i tempi
   float acc[100]; //Array contenente le accelerazioni
   int tempo = 100; //valore da attribuire al delay
-  
+  float accX[100]; //array contenente le accelerazioni sull'asse x
+  float accY[100]; //array contenente le accelerazioni sull'asse y
+  float accZ[100]; //array contenente le accelerazioni sull'asse z
   for (int i=0; i<100;i++){ //Legge l'accelerazione e inserisce i valori ottenuti in acc[i] in linea con il tempo 100 volte
     if (carrier.IMUmodule.accelerationAvailable()){ 
       carrier.IMUmodule.readAcceleration(x,y,z);
     }
     tempi[i]= i*tempo; //tempo che corrisponde all'accelerazione
     acc[i] = sqrt(x*x + y*y + z*z); //formula matematica
+    accX[i] = x;
+    accY[i] = y;
+    accZ[i] = z;
     delay(tempo); // quanto aspettare tra una misurazione e l'altra
   }
 
@@ -41,7 +50,7 @@ void leggiAccelerometro(WiFiClient paginaWeb) {
     Serial.print(", ");
   } 
   Serial.println("]");
-  // fine debugging
+        // fine debugging
  
   // inviamo al client una pagina web, stampando riga per riga i tag html statici e il codice javascript (variabile)
   paginaWeb.println("<html>");
@@ -49,6 +58,7 @@ void leggiAccelerometro(WiFiClient paginaWeb) {
   paginaWeb.println("<script src=\"https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js\"></script>");
   // il canvas dove andremo a disegnare il grafico
   paginaWeb.println("<canvas id=\"Grafico\" style=\"width:100%;max-width:600px\"></canvas>");
+  paginaWeb.println("<canvas id=\"GraficoSeparato\" style=\"witdh:100%;max-width:600px\"></canvas>");
   // inizio codice javascript da eseguire per generare il grafico, si deve inserire all'interno del tag script
   paginaWeb.println("<script>");
   paginaWeb.print("var tempi = [");
@@ -61,19 +71,38 @@ void leggiAccelerometro(WiFiClient paginaWeb) {
   for (int i = 0; i < 100; i++) {
     paginaWeb.print(tempi[i]);
     paginaWeb.print(", ");
-  }
-  paginaWeb.println("];");
+  } paginaWeb.println("];");
+  
   paginaWeb.print("var acc = [");
   for (int i=0; i<100; i++){
     paginaWeb.print(acc[i]);
     paginaWeb.print(", ");
-  }
-  paginaWeb.println("];");
+  } paginaWeb.println("];");
+ 
+  paginaWeb.print("var accX = [");
+  for (int i=0; i<100; i++){
+    paginaWeb.print(accX[i];
+    paginaWeb.print(", ");
+  } paginaWeb.println("];");
+  
+  paginaWeb.print("var accY = [");
+  for (int i=0; i<100; i++){
+    paginaWeb.print(accY[i];
+    paginaWeb.print(", ");
+  } paginaWeb.println("];");
+  
+  paginaWeb.print("var accZ = [");
+  for (int i=0; i<100; i++){
+    paginaWeb.print(accZ[i];
+    paginaWeb.print(", ");   
+  } paginaWeb.println("];");
+  
 
   // generiamo un grafico con l'array tempi come asse x e acc come asse y, attraverso la libreria Chart.js
   // il grafico viene inserito nel canvas con id "Grafico", è di tipo "line" e l'unica serie di dati (dataset) presente è quella delle accelerazioni
   // mettendo più datasets, magari di più misurazioni si generano più linee
-  paginaWeb.println("new Chart(\"Grafico\",{type: \"line\", data: {labels: tempi,datasets: [{fill: false, lineTension: 0, data: acc}]}});");
+  paginaWeb.println("new Chart(\"Grafico\",{type: \"line\", data: {labels: tempi,datasets: [{label: \"Accelerazione\", fill: false, lineTension: 0, backgroundColor: \"rgba(0,0,0, 1.0)\", data: acc}]}});");
+  paginaWeb.println("new Chart(\"GraficoSeparato\",{type: \"line\", data: {labels: tempi, datasets: [{label: \"Accelerazione X\", fill: false, lineTension:0, backgroundColor: \"rgba(0,0,255, 1.0)\", borderColor: \"rgba(0,0,255,0.1)\", data: accX},{ label: \"Accelerazione Y\", fill: false, lineTension:0, backgroundColor: \"rgba(0,255,0, 1.0)\", borderColor: \"rgba(0,255,0, 0.1)\", data: accY},{label: \"Accelerazione Z\", fill: false, lineTension:0, backgroundColor: \"rgba(255,0,0, 1.0)\", borderColor(255,0,0, 0.1)\", data: accZ}]}});"); 
 
   // chiusura dei tag per la pagina
   paginaWeb.println("</script>");
@@ -139,6 +168,8 @@ void setup() {
 String PERCORSO_DATI = "GET /dati HTTP/1.1";
 // http://ipArduino/
 String PERCORSO_ROOT = "GET / HTTP/1.1";
+// http://ipArduino/accelerazioni
+String PERCORSO_ACCELERAZIONI = "POST /accelerazioni HTTP/1.1";
 // istruzione ricevuta
 String lineaCorrente = "";                
 void loop() {
@@ -182,6 +213,9 @@ void loop() {
         client.println("Content-type:text/html"); // stiamo inviando dell'html
         client.println(); // nuova riga per iniziare a mandare l'html (sono finiti gli header)
         client.println("<html><h1>Pagina web funzionante</h1></html>");
+        break;
+      } else if (lineaCorrente.equals(PERCORSO_ACCELERAZIONI)) {
+        mandaAccelerazione(client);
         break;
       } else {
         break;
